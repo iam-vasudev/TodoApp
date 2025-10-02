@@ -1,89 +1,50 @@
 #!/bin/bash
-yum update -y
-yum install -y docker git
+set -e
 
-# Start Docker
-systemctl start docker
-systemctl enable docker
-usermod -a -G docker ec2-user
 
-# Install Node.js
-curl -fsSL https://rpm.nodesource.com/setup_18.x | bash -
-yum install -y nodejs
+# Install Docker
+if ! command -v docker >/dev/null 2>&1; then
+apt-get update -y || true
+apt-get install -y apt-transport-https ca-certificates curl gnupg-agent software-properties-common
+curl -fsSL https://download.docker.com/linux/ubuntu/gpg | apt-key add -
+add-apt-repository "deb [arch=amd64] https://download.docker.com/linux/ubuntu $(lsb_release -cs) stable"
+apt-get update -y
+apt-get install -y docker-ce docker-ce-cli containerd.io
+systemctl enable --now docker
+fi
 
-# Clone and setup app
-cd /home/ec2-user
-git clone https://github.com/your-username/react-todo-app.git || echo "Using local files"
 
-# Create app directory if git clone failed
-mkdir -p /home/ec2-user/app
-cd /home/ec2-user/app
+# Install SSM agent (for newer Ubuntu images)
+if ! systemctl is-active --quiet amazon-ssm-agent; then
+snap install amazon-ssm-agent --classic || apt-get install -y amazon-ssm-agent || true
+systemctl enable --now amazon-ssm-agent || true
+fi
 
-# Create package.json
-cat > package.json << 'EOF'
-{
-  "name": "react-todo-app",
-  "version": "0.1.0",
-  "private": true,
-  "scripts": {
-    "dev": "next dev",
-    "build": "next build",
-    "start": "next start",
-    "lint": "next lint"
-  },
-  "dependencies": {
-    "next": "14.0.0",
-    "react": "^18",
-    "react-dom": "^18",
-    "pg": "^8.11.3"
-  },
-  "devDependencies": {
-    "@types/node": "^20",
-    "@types/react": "^18",
-    "@types/react-dom": "^18",
-    "autoprefixer": "^10.0.1",
-    "eslint": "^8",
-    "eslint-config-next": "14.0.0",
-    "postcss": "^8",
-    "tailwindcss": "^3.3.0",
-    "typescript": "^5"
-  }
-}
-EOF
 
-# Set environment variables
-cat > .env.local << EOF
-NODE_ENV=production
-DATABASE_URL=postgresql://${db_username}:${db_password}@${db_endpoint}/${db_name}
-EOF
+# Ensure jq is available
+if ! command -v jq >/dev/null 2>&1; then
+apt-get install -y jq || true
+fi
 
-# Install dependencies and build
-npm install
-npm run build
 
-# Create systemd service
-cat > /etc/systemd/system/todo-app.service << EOF
+# Create a simple systemd service placeholder for the app
+cat >/etc/systemd/system/todoapp.service <<'EOF'
 [Unit]
-Description=React Todo App
-After=network.target
+Description=TodoApp container
+After=docker.service
+
 
 [Service]
-Type=simple
-User=ec2-user
-WorkingDirectory=/home/ec2-user/app
-Environment=NODE_ENV=production
-Environment=DATABASE_URL=postgresql://${db_username}:${db_password}@${db_endpoint}/${db_name}
-ExecStart=/usr/bin/npm start
 Restart=always
+ExecStartPre=-/usr/bin/docker rm -f todoapp
+ExecStart=/usr/bin/docker run --rm --name todoapp -p 3000:3000 719108377965.dkr.ecr.us-east-1.amazonaws.com/todoapp:latest
+ExecStop=/usr/bin/docker stop todoapp
+
 
 [Install]
 WantedBy=multi-user.target
 EOF
 
-# Change ownership
-chown -R ec2-user:ec2-user /home/ec2-user/app
 
-# Enable and start service
 systemctl daemon-reload
-systemctl enable todo-app
-systemctl start todo-app
+systemctl enable --now todoapp.service || true
