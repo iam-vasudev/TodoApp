@@ -34,11 +34,3 @@ role = aws_iam_role.ec2_role.name
 }
 
 
-############################################################
-# ecr.tf
-############################################################
-resource "aws_ecr_repository" "todoapp" {
-name = var.ecr_repo_name
-image_tag_mutability = "MUTABLE"
-tags = { Name = "todoapp-ecr" }
-}
