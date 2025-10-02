@@ -17,7 +17,7 @@ resource "aws_instance" "app" {
   key_name               = var.key_name != "" ? var.key_name : null
   iam_instance_profile   = aws_iam_instance_profile.ec2_instance_profile.name
 
-  user_data = base64encode(file("./userdata.sh"))
+  user_data_base64 = base64encode(file("./userdata.sh"))
 
   tags = {
     Name = "todoapp-ec2"
@@ -27,6 +27,6 @@ resource "aws_instance" "app" {
 # Elastic IP to mimic your CloudFormation mapping
 resource "aws_eip" "app_eip" {
   instance = aws_instance.app.id
-  vpc      = true
+  domain   = "vpc"
   tags     = { Name = "todoapp-eip" }
 }
