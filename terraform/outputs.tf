@@ -11,6 +11,6 @@ value = aws_lb.nlb.dns_name
 
 
 output "ecr_repo_url" {
-description = "ECR repository URL"
-value = aws_ecr_repository.todoapp.repository_url
+  description = "ECR repository URL"
+  value       = data.aws_ecr_repository.todoapp.repository_url
 }
